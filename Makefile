@@ -26,8 +26,8 @@ test:
 	php -d pcov.enabled=0 vendor/bin/phpunit --no-coverage
 
 coverage:
-	@echo "📊 Running tests with coverage..."
-	php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --coverage-clover coverage/clover.xml
+	@echo "📊 Running tests with coverage (Docker)..."
+	docker run --rm -v $(PWD):/app -w /app job-service-php:test php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --coverage-clover coverage/clover.xml
 	php scripts/check-coverage.php
 
 lint:

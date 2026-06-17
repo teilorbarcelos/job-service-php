@@ -39,16 +39,22 @@ class DefaultHealthCheckerTest extends TestCase
 {
     private LoggerInterface $logger;
 
+    private bool $sqliteAvailable;
+
     protected function setUp(): void
     {
         DatabaseProvider::resetInstance();
         RedisProvider::resetInstance();
         $_ENV['MESSAGING_ENABLED'] = 'false';
         $this->logger = $this->createMock(LoggerInterface::class);
+        $this->sqliteAvailable = in_array('sqlite', \PDO::getAvailableDrivers());
     }
 
     public function testCheckPostgresReturnsUpWithSqlite(): void
     {
+        if (!$this->sqliteAvailable) {
+            $this->markTestSkipped('SQLite PDO driver not available');
+        }
         $database = DatabaseProvider::getInstance();
         $redis = RedisProvider::getInstance();
         $rabbitmq = new RabbitMQProvider($this->logger);
