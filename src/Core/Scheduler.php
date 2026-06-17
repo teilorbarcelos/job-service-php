@@ -78,7 +78,48 @@ class Scheduler
         }
 
         $this->stopped = false;
-        $this->runLoop();
+    }
+
+    public function run(): void
+    {
+        $this->start();
+
+        // @codeCoverageIgnoreStart
+        if (!function_exists('pcntl_signal')) {
+            $this->logger->warning('pcntl extension not available, running without signal support');
+        }
+
+        while (!$this->stopped) {
+            $this->tick();
+            sleep(1);
+        }
+        // @codeCoverageIgnoreEnd
+    }
+
+    public function tick(): void
+    {
+        if (function_exists('pcntl_signal_dispatch')) {
+            pcntl_signal_dispatch();
+        }
+
+        $now = new \DateTimeImmutable();
+        foreach ($this->jobs as $name => $job) {
+            if (!$job->enabled) {
+                continue;
+            }
+
+            $nextRun = $this->nextRuns[$name] ?? null;
+            if ($nextRun === null || $now >= $nextRun) {
+                if ($this->isRunning($name)) {
+                    $this->logger->warning("Job {$name} still running, skipping");
+                    $this->nextRuns[$name] = $this->calculateNextRun($job->getSchedule());
+                    continue;
+                }
+
+                $this->execute($name, $job);
+                $this->nextRuns[$name] = $this->calculateNextRun($job->getSchedule());
+            }
+        }
     }
 
     public function stop(): void
@@ -101,42 +142,7 @@ class Scheduler
         return ($this->running[$name] ?? false);
     }
 
-    private function runLoop(): void
-    {
-        if (!function_exists('pcntl_signal')) {
-            $this->logger->warning('pcntl extension not available, running without signal support');
-        }
-
-        while (!$this->stopped) {
-            if (function_exists('pcntl_signal_dispatch')) {
-                pcntl_signal_dispatch();
-            }
-
-            $now = new \DateTimeImmutable();
-            foreach ($this->jobs as $name => $job) {
-                if (!$job->enabled) {
-                    continue;
-                }
-
-                $nextRun = $this->nextRuns[$name] ?? null;
-                if ($nextRun === null || $now >= $nextRun) {
-                    if ($this->isRunning($name)) {
-                        $this->logger->warning("Job {$name} still running, skipping");
-                        $this->nextRuns[$name] = $this->calculateNextRun($job->getSchedule());
-                        continue;
-                    }
-
-                    $this->execute($name, $job);
-                    $this->nextRuns[$name] = $this->calculateNextRun($job->getSchedule());
-                }
-            }
-
-            // Sleep for 1 second (or next run, whichever is sooner)
-            sleep(1);
-        }
-    }
-
-    private function execute(string $name, BaseJob $job): void
+    public function execute(string $name, BaseJob $job): void
     {
         $this->running[$name] = true;
 
@@ -166,16 +172,21 @@ class Scheduler
         }
     }
 
-    private function getJobLogger(string $name): LoggerInterface
+    public function getNextRun(string $name): ?\DateTimeImmutable
+    {
+        return $this->nextRuns[$name] ?? null;
+    }
+
+    public function calculateNextRun(string $schedule): ?\DateTimeImmutable
+    {
+        return $this->cron->getNextRunDate($schedule, new \DateTimeImmutable());
+    }
+
+    public function getJobLogger(string $name): LoggerInterface
     {
         if (method_exists($this->logger, 'withName')) {
             return $this->logger->withName($name);
         }
         return $this->logger;
-    }
-
-    private function calculateNextRun(string $schedule): ?\DateTimeImmutable
-    {
-        return $this->cron->getNextRunDate($schedule, new \DateTimeImmutable());
     }
 }

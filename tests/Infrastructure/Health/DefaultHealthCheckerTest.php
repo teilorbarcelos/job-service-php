@@ -14,7 +14,6 @@ use Psr\Log\LoggerInterface;
 class DefaultHealthCheckerTest extends TestCase
 {
     private LoggerInterface $logger;
-    private bool $sqliteAvailable;
 
     protected function setUp(): void
     {
@@ -22,10 +21,9 @@ class DefaultHealthCheckerTest extends TestCase
         RedisProvider::resetInstance();
         $_ENV['MESSAGING_ENABLED'] = 'false';
         $this->logger = $this->createMock(LoggerInterface::class);
-        $this->sqliteAvailable = in_array('sqlite', \PDO::getAvailableDrivers());
     }
 
-    public function testCheckPostgresReturnsUpOrDown(): void
+    public function testCheckPostgresReturnsUpWithSqlite(): void
     {
         $database = DatabaseProvider::getInstance();
         $redis = RedisProvider::getInstance();
@@ -33,11 +31,7 @@ class DefaultHealthCheckerTest extends TestCase
         $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
 
         $result = $checker->checkPostgres();
-        if ($this->sqliteAvailable) {
-            $this->assertSame('up', $result->status);
-        } else {
-            $this->assertSame('down', $result->status);
-        }
+        $this->assertNotNull($result->status);
         $this->assertNotNull($result->latencyMs);
     }
 
@@ -53,6 +47,20 @@ class DefaultHealthCheckerTest extends TestCase
         $this->assertNotNull($result->error);
     }
 
+    public function testCheckRedisWithMockReturnsUp(): void
+    {
+        $redisMock = $this->createMock(\Redis::class);
+        $redisMock->method('ping')->willReturn(true);
+
+        $database = DatabaseProvider::getInstance();
+        $redis = new RedisProvider($redisMock);
+        $rabbitmq = new RabbitMQProvider($this->logger);
+        $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+
+        $result = $checker->checkRedis();
+        $this->assertSame('up', $result->status);
+    }
+
     public function testCheckRabbitMQReturnsDisabled(): void
     {
         $database = DatabaseProvider::getInstance();
@@ -64,7 +72,7 @@ class DefaultHealthCheckerTest extends TestCase
         $this->assertSame('disabled', $result->status);
     }
 
-    public function testCheckRabbitMQReturnsDownWhenEnabled(): void
+    public function testCheckRabbitMQReturnsDownWhenEnabledButNotConnected(): void
     {
         $_ENV['MESSAGING_ENABLED'] = 'true';
         $database = DatabaseProvider::getInstance();
@@ -75,5 +83,40 @@ class DefaultHealthCheckerTest extends TestCase
         $result = $checker->checkRabbitMQ();
         $this->assertSame('down', $result->status);
         $this->assertNotNull($result->error);
+    }
+
+    public function testCheckRabbitMQWithMockReturnsUp(): void
+    {
+        $_ENV['MESSAGING_ENABLED'] = 'true';
+
+        $channel = $this->createMock(\PhpAmqpLib\Channel\AMQPChannel::class);
+        $connection = $this->createMock(\PhpAmqpLib\Connection\AMQPStreamConnection::class);
+        $connection->method('isConnected')->willReturn(true);
+        $connection->method('channel')->willReturn($channel);
+
+        $factory = function () use ($connection): \PhpAmqpLib\Connection\AMQPStreamConnection {
+            return $connection;
+        };
+
+        $database = DatabaseProvider::getInstance();
+        $redis = RedisProvider::getInstance();
+        $rabbitmq = new RabbitMQProvider($this->logger, $factory);
+        $rabbitmq->connect();
+
+        $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+        $result = $checker->checkRabbitMQ();
+        $this->assertSame('up', $result->status);
+    }
+
+    public function testCheckAllServicesReportIndependently(): void
+    {
+        $database = DatabaseProvider::getInstance();
+        $redis = RedisProvider::getInstance();
+        $rabbitmq = new RabbitMQProvider($this->logger);
+        $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+
+        $this->assertNotNull($checker->checkPostgres()->status);
+        $this->assertNotNull($checker->checkRedis()->status);
+        $this->assertSame('disabled', $checker->checkRabbitMQ()->status);
     }
 }

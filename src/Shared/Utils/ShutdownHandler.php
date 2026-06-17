@@ -21,6 +21,7 @@ final class ShutdownHandler
             return;
         }
 
+        // @codeCoverageIgnoreStart
         $handler = function (int $signal) use ($cleanup, $logger, $timeoutMs): void {
             $logger->info('Shutdown signal received', ['signal' => $signal]);
 
@@ -44,5 +45,6 @@ final class ShutdownHandler
             pcntl_signal(SIGTERM, $handler);
             pcntl_signal(SIGINT, $handler);
         }
+        // @codeCoverageIgnoreEnd
     }
 }

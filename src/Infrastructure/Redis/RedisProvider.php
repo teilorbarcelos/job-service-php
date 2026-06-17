@@ -9,7 +9,12 @@ class RedisProvider
     private static ?self $instance = null;
     private ?\Redis $redis = null;
 
-    private function __construct() {}
+    final public function __construct(?\Redis $redis = null)
+    {
+        if ($redis !== null) {
+            $this->redis = $redis;
+        }
+    }
 
     public static function getInstance(): self
     {
@@ -41,5 +46,10 @@ class RedisProvider
             }
         }
         self::$instance = null;
+    }
+
+    public function hasRedis(): bool
+    {
+        return $this->redis !== null;
     }
 }

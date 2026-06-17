@@ -15,23 +15,23 @@ class ShutdownHandlerTest extends TestCase
         $_ENV['APP_ENV'] = 'testing';
         $logger = $this->createMock(LoggerInterface::class);
 
-        $cleanup = function (): void {
-            $this->assertTrue(true);
+        $invoked = false;
+        $cleanup = function () use (&$invoked): void {
+            $invoked = true;
         };
 
         ShutdownHandler::register($cleanup, $logger);
         ShutdownHandler::register($cleanup, $logger);
 
-        $this->assertTrue(true);
+        $this->assertFalse($invoked);
     }
 
-    public function testRegisterSetsRegisteredFlag(): void
+    public function testRegisterDoesNotThrow(): void
     {
         $_ENV['APP_ENV'] = 'testing';
         $logger = $this->createMock(LoggerInterface::class);
 
         ShutdownHandler::register(function () {}, $logger);
-
         $this->assertTrue(true);
     }
 }

@@ -58,7 +58,7 @@ $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
 $cron = new DragonmantankCronAdapter();
 
 $scheduler = registerJobs($settings, $cron, $logger, $checker);
-$scheduler->start();
+$scheduler->run();
 
 ShutdownHandler::register(function () use ($scheduler, $rabbitmq, $logger): void {
     $logger->info('Shutting down...');

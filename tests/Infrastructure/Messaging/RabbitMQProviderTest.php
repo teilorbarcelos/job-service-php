@@ -87,4 +87,64 @@ class RabbitMQProviderTest extends TestCase
 
         $this->assertFalse($provider->isOpen());
     }
+
+    public function testIsOpenWithGoodFactoryReturnsTrue(): void
+    {
+        $_ENV['MESSAGING_ENABLED'] = 'true';
+
+        $channel = $this->createMock(\PhpAmqpLib\Channel\AMQPChannel::class);
+
+        $connection = $this->createMock(\PhpAmqpLib\Connection\AMQPStreamConnection::class);
+        $connection->method('isConnected')->willReturn(true);
+        $connection->method('channel')->willReturn($channel);
+
+        $factory = function () use ($connection): \PhpAmqpLib\Connection\AMQPStreamConnection {
+            return $connection;
+        };
+
+        $provider = new RabbitMQProvider($this->logger, $factory);
+        $provider->connect();
+
+        $this->assertTrue($provider->isOpen());
+    }
+
+    public function testCloseWithOpenConnection(): void
+    {
+        $_ENV['MESSAGING_ENABLED'] = 'true';
+
+        $channel = $this->createMock(\PhpAmqpLib\Channel\AMQPChannel::class);
+        $connection = $this->createMock(\PhpAmqpLib\Connection\AMQPStreamConnection::class);
+        $connection->method('isConnected')->willReturn(true);
+        $connection->method('channel')->willReturn($channel);
+
+        $factory = function () use ($connection): \PhpAmqpLib\Connection\AMQPStreamConnection {
+            return $connection;
+        };
+
+        $provider = new RabbitMQProvider($this->logger, $factory);
+        $provider->connect();
+        $provider->close();
+
+        $this->assertFalse($provider->isOpen());
+    }
+
+    public function testConnectWhenAlreadyConnectedDoesNothing(): void
+    {
+        $_ENV['MESSAGING_ENABLED'] = 'true';
+
+        $channel = $this->createMock(\PhpAmqpLib\Channel\AMQPChannel::class);
+        $connection = $this->createMock(\PhpAmqpLib\Connection\AMQPStreamConnection::class);
+        $connection->method('isConnected')->willReturn(true);
+        $connection->method('channel')->willReturn($channel);
+
+        $factory = function () use ($connection): \PhpAmqpLib\Connection\AMQPStreamConnection {
+            return $connection;
+        };
+
+        $provider = new RabbitMQProvider($this->logger, $factory);
+        $provider->connect(); // first time
+        $provider->connect(); // second time (should no-op)
+
+        $this->assertTrue($provider->isOpen());
+    }
 }
