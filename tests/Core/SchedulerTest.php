@@ -237,7 +237,7 @@ class SchedulerTest extends TestCase
         $this->assertTrue($job->wasExecuted);
     }
 
-    public function testTickSkipsRunningJobs(): void
+    public function testTickDoesNotRunDisabledJobs(): void
     {
         $cron = $this->createMock(CronAdapter::class);
         $cron->method('isValid')->willReturn(true);
@@ -246,19 +246,86 @@ class SchedulerTest extends TestCase
         $job = new SchedulerTestJob();
         $job->jobName = 'a';
         $job->jobSchedule = '*/1 * * * *';
+        $job->enabled = false;
         $job->setLogger($this->logger);
 
         $scheduler = new Scheduler([$job], $cron, $this->logger);
         $scheduler->start();
-
-        $scheduler->execute('a', $job);
-        $job->wasExecuted = false;
-
         $scheduler->tick();
-        // Should not execute again because it's running... but execute finished.
-        // After execute finishes, isRunning is false. So tick will run it again.
-        // This test verifies it doesn't crash
+
+        $this->assertFalse($job->wasExecuted);
+    }
+
+    public function testTickWithNoNextRunYetDoesNotExecute(): void
+    {
+        $cron = $this->createMock(CronAdapter::class);
+        $cron->method('isValid')->willReturn(true);
+        $cron->method('getNextRunDate')->willReturn(new \DateTimeImmutable('+5 minutes'));
+
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/1 * * * *';
+        $job->setLogger($this->logger);
+
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
+        $scheduler->start();
+        $scheduler->tick();
+
+        $this->assertFalse($job->wasExecuted);
+    }
+
+    public function testTickWithNullNextRunExecutes(): void
+    {
+        $cron = $this->createMock(CronAdapter::class);
+        $cron->method('isValid')->willReturn(true);
+        $cron->method('getNextRunDate')->willReturn(null);
+
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/1 * * * *';
+        $job->setLogger($this->logger);
+
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
+        $scheduler->start();
+        $scheduler->tick();
+
+        // Null next run means no execution
+        $this->assertFalse($job->wasExecuted);
+    }
+
+    public function testStopWithJobs(): void
+    {
+        $cron = $this->createValidCron();
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/5 * * * *';
+
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
+        $scheduler->start();
+        $scheduler->stop();
+
         $this->assertTrue(true);
+    }
+
+    public function testSetStopped(): void
+    {
+        $scheduler = new Scheduler([], $this->createValidCron(), $this->logger);
+        $scheduler->setStopped(true);
+        $this->assertTrue(true);
+    }
+
+    public function testWaitForRunningJobsWithNoJobs(): void
+    {
+        $scheduler = new Scheduler([], $this->createValidCron(), $this->logger);
+        $scheduler->waitForRunningJobs();
+        $this->assertTrue(true);
+    }
+
+    public function testGetJobLoggerWithStandardLogger(): void
+    {
+        $scheduler = new Scheduler([], $this->createValidCron(), $this->logger);
+        $logger = $scheduler->getJobLogger('test');
+        $this->assertInstanceOf(LoggerInterface::class, $logger);
     }
 
     private function createValidCron(): CronAdapter

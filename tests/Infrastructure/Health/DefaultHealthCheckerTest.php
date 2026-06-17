@@ -11,6 +11,30 @@ use App\Infrastructure\Redis\RedisProvider;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
+class FailingDatabaseProvider extends DatabaseProvider
+{
+    public function __construct()
+    {
+    }
+
+    public function ping(): bool
+    {
+        throw new \RuntimeException('Database connection failed');
+    }
+}
+
+class FalsePingDatabaseProvider extends DatabaseProvider
+{
+    public function __construct()
+    {
+    }
+
+    public function ping(): bool
+    {
+        return false;
+    }
+}
+
 class DefaultHealthCheckerTest extends TestCase
 {
     private LoggerInterface $logger;
@@ -31,8 +55,32 @@ class DefaultHealthCheckerTest extends TestCase
         $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
 
         $result = $checker->checkPostgres();
-        $this->assertNotNull($result->status);
+        $this->assertSame('up', $result->status);
         $this->assertNotNull($result->latencyMs);
+    }
+
+    public function testCheckPostgresReturnsDownOnFalse(): void
+    {
+        $database = new FalsePingDatabaseProvider();
+        $redis = RedisProvider::getInstance();
+        $rabbitmq = new RabbitMQProvider($this->logger);
+        $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+
+        $result = $checker->checkPostgres();
+        $this->assertSame('down', $result->status);
+        $this->assertStringContainsString('Database ping returned false', $result->error ?? '');
+    }
+
+    public function testCheckPostgresReturnsDownOnCatch(): void
+    {
+        $database = new FailingDatabaseProvider();
+        $redis = RedisProvider::getInstance();
+        $rabbitmq = new RabbitMQProvider($this->logger);
+        $checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+
+        $result = $checker->checkPostgres();
+        $this->assertSame('down', $result->status);
+        $this->assertStringContainsString('Database connection failed', $result->error ?? '');
     }
 
     public function testCheckRedisReturnsDown(): void

@@ -47,4 +47,10 @@ final class ShutdownHandler
         }
         // @codeCoverageIgnoreEnd
     }
+
+    public static function reset(): void
+    {
+        self::$registered = false;
+    }
 }
+

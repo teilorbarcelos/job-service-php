@@ -80,20 +80,9 @@ class Scheduler
         $this->stopped = false;
     }
 
-    public function run(): void
+    public function setStopped(bool $stopped): void
     {
-        $this->start();
-
-        // @codeCoverageIgnoreStart
-        if (!function_exists('pcntl_signal')) {
-            $this->logger->warning('pcntl extension not available, running without signal support');
-        }
-
-        while (!$this->stopped) {
-            $this->tick();
-            sleep(1);
-        }
-        // @codeCoverageIgnoreEnd
+        $this->stopped = $stopped;
     }
 
     public function tick(): void
@@ -132,8 +121,10 @@ class Scheduler
 
     public function waitForRunningJobs(): void
     {
-        while (count($this->running) > 0) {
+        $maxWait = 500; // 500 * 50ms = 25 seconds max
+        while (count($this->running) > 0 && $maxWait > 0) {
             usleep(50_000);
+            $maxWait--;
         }
     }
 

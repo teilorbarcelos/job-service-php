@@ -11,7 +11,7 @@ class DatabaseProvider
     private static ?self $instance = null;
     private Capsule $capsule;
 
-    private function __construct()
+    protected function __construct()
     {
         $this->capsule = new Capsule();
         $this->capsule->addConnection([
