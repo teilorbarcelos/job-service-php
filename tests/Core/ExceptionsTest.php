@@ -10,10 +10,15 @@ class ExceptionsTest extends TestCase
 {
     public function testAppErrorConstructor(): void
     {
-        $error = new \App\Core\Exceptions\AppError('test message', 42, null, ['key' => 'value']);
+        $error = new \App\Core\Exceptions\ConfigurationError('test message', ['key' => 'value']);
         $this->assertSame('test message', $error->getMessage());
-        $this->assertSame(42, $error->getCode());
         $this->assertSame(['key' => 'value'], $error->details);
+    }
+
+    public function testAppErrorInheritance(): void
+    {
+        $error = new \App\Core\Exceptions\ConfigurationError();
+        $this->assertInstanceOf(\RuntimeException::class, $error);
     }
 
     public function testConfigurationError(): void

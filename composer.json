@@ -6,7 +6,10 @@
     "autoload": {
         "psr-4": {
             "App\\": "src/"
-        }
+        },
+        "files": [
+            "src/Jobs/register-jobs.php"
+        ]
     },
     "autoload-dev": {
         "psr-4": {

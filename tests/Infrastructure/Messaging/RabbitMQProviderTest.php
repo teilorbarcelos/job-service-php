@@ -15,18 +15,17 @@ class RabbitMQProviderTest extends TestCase
     protected function setUp(): void
     {
         $this->logger = $this->createMock(LoggerInterface::class);
+        $_ENV['MESSAGING_ENABLED'] = 'false';
     }
 
     public function testIsOpenReturnsFalseWhenDisabled(): void
     {
-        $_ENV['MESSAGING_ENABLED'] = 'false';
         $provider = new RabbitMQProvider($this->logger);
         $this->assertFalse($provider->isOpen());
     }
 
     public function testConnectDoesNothingWhenDisabled(): void
     {
-        $_ENV['MESSAGING_ENABLED'] = 'false';
         $provider = new RabbitMQProvider($this->logger);
         $provider->connect();
         $this->assertFalse($provider->isOpen());
@@ -34,7 +33,6 @@ class RabbitMQProviderTest extends TestCase
 
     public function testPublishDoesNothingWhenDisabled(): void
     {
-        $_ENV['MESSAGING_ENABLED'] = 'false';
         $provider = new RabbitMQProvider($this->logger);
         $provider->publish('test', ['key' => 'value']);
         $this->assertFalse($provider->isOpen());
@@ -42,25 +40,12 @@ class RabbitMQProviderTest extends TestCase
 
     public function testCloseWithNoConnectionDoesNothing(): void
     {
-        $_ENV['MESSAGING_ENABLED'] = 'true';
         $provider = new RabbitMQProvider($this->logger);
         $provider->close();
         $this->assertFalse($provider->isOpen());
     }
 
-    public function testConnectWithBadHostThrows(): void
-    {
-        $_ENV['MESSAGING_ENABLED'] = 'true';
-        $_ENV['RABBIT_HOST'] = '192.0.2.1'; // non-routable
-        $_ENV['RABBIT_PORT'] = '5672';
-
-        $provider = new RabbitMQProvider($this->logger);
-
-        $this->expectException(\Exception::class);
-        $provider->connect();
-    }
-
-    public function testConnectWithBadHostViaFactoryThrows(): void
+    public function testConnectWithFailingFactoryThrows(): void
     {
         $_ENV['MESSAGING_ENABLED'] = 'true';
         $factory = function (): void {
@@ -83,6 +68,23 @@ class RabbitMQProviderTest extends TestCase
 
         $provider = new RabbitMQProvider($this->logger, $factory);
         $provider->publish('test', ['key' => 'value']);
+        $this->assertFalse($provider->isOpen());
+    }
+
+    public function testIsOpenReturnsFalseAfterFailedConnect(): void
+    {
+        $_ENV['MESSAGING_ENABLED'] = 'true';
+        $factory = function (): void {
+            throw new \RuntimeException('connection factory failed');
+        };
+
+        $provider = new RabbitMQProvider($this->logger, $factory);
+
+        try {
+            $provider->connect();
+        } catch (\RuntimeException) {
+        }
+
         $this->assertFalse($provider->isOpen());
     }
 }

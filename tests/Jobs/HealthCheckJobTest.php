@@ -6,12 +6,8 @@ namespace Tests\Jobs;
 
 use App\Core\JobContext;
 use App\Core\JobSignal;
-use App\Infrastructure\Database\DatabaseProvider;
-use App\Infrastructure\Health\DefaultHealthChecker;
 use App\Infrastructure\Health\HealthCheckResult;
 use App\Infrastructure\Health\HealthCheckerInterface;
-use App\Infrastructure\Redis\RedisProvider;
-use App\Infrastructure\Messaging\RabbitMQProvider;
 use App\Jobs\HealthCheckJob;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
@@ -49,22 +45,61 @@ class HealthCheckJobTest extends TestCase
         $this->assertStringContainsString('RabbitMQ', $job->getDescription());
     }
 
-    public function testHandleLogsHealthyWhenAllUp(): void
+    public function testDefaultSchedule(): void
     {
-        $checker = $this->createAllUpChecker();
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $job = new HealthCheckJob($checker);
+        $this->assertSame('*/1 * * * *', $job->getSchedule());
+    }
+
+    public function testDefaultEnabled(): void
+    {
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $job = new HealthCheckJob($checker);
+        $this->assertTrue($job->enabled);
+    }
+
+    public function testHandleChecksAllThreeServices(): void
+    {
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker->expects($this->once())->method('checkPostgres')->willReturn(new HealthCheckResult('up', 5));
+        $checker->expects($this->once())->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
+        $checker->expects($this->once())->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
 
-        $this->logger->expects($this->once())
-            ->method('info')
-            ->with(
-                'Health check completed',
-                $this->callback(function (array $payload) {
-                    return $payload['status'] === 'healthy';
-                })
-            );
+        $result = $job->run(new JobContext($this->logger, new JobSignal()));
 
+        $this->assertSame('success', $result->status->value);
+    }
+
+    public function testHandleLogsHealthyWhenAllUp(): void
+    {
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker->method('checkPostgres')->willReturn(new HealthCheckResult('up', 5));
+        $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
+        $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
+
+        $loggedPayloads = [];
+        $this->logger->method('info')->willReturnCallback(function ($message, $context) use (&$loggedPayloads): void {
+            $loggedPayloads[] = $context;
+        });
+
+        $job = new HealthCheckJob($checker);
+        $job->setLogger($this->logger);
         $job->run(new JobContext($this->logger, new JobSignal()));
+
+        $healthPayload = null;
+        foreach ($loggedPayloads as $p) {
+            if (($p['event'] ?? '') === 'health-check') {
+                $healthPayload = $p;
+                break;
+            }
+        }
+
+        $this->assertNotNull($healthPayload);
+        $this->assertSame('healthy', $healthPayload['status']);
     }
 
     public function testHandleLogsDegradedWhenPostgresDown(): void
@@ -74,19 +109,25 @@ class HealthCheckJobTest extends TestCase
         $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
         $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
 
+        $loggedPayloads = [];
+        $this->logger->method('info')->willReturnCallback(function ($message, $context) use (&$loggedPayloads): void {
+            $loggedPayloads[] = $context;
+        });
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
-
-        $this->logger->expects($this->once())
-            ->method('info')
-            ->with(
-                'Health check completed',
-                $this->callback(function (array $payload) {
-                    return $payload['status'] === 'degraded';
-                })
-            );
-
         $job->run(new JobContext($this->logger, new JobSignal()));
+
+        $healthPayload = null;
+        foreach ($loggedPayloads as $p) {
+            if (($p['event'] ?? '') === 'health-check') {
+                $healthPayload = $p;
+                break;
+            }
+        }
+
+        $this->assertNotNull($healthPayload);
+        $this->assertSame('degraded', $healthPayload['status']);
     }
 
     public function testHandleLogsDegradedWhenRedisDown(): void
@@ -96,19 +137,25 @@ class HealthCheckJobTest extends TestCase
         $checker->method('checkRedis')->willReturn(new HealthCheckResult('down', null, 'timeout'));
         $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
 
+        $loggedPayloads = [];
+        $this->logger->method('info')->willReturnCallback(function ($message, $context) use (&$loggedPayloads): void {
+            $loggedPayloads[] = $context;
+        });
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
-
-        $this->logger->expects($this->once())
-            ->method('info')
-            ->with(
-                'Health check completed',
-                $this->callback(function (array $payload) {
-                    return $payload['status'] === 'degraded';
-                })
-            );
-
         $job->run(new JobContext($this->logger, new JobSignal()));
+
+        $healthPayload = null;
+        foreach ($loggedPayloads as $p) {
+            if (($p['event'] ?? '') === 'health-check') {
+                $healthPayload = $p;
+                break;
+            }
+        }
+
+        $this->assertNotNull($healthPayload);
+        $this->assertSame('degraded', $healthPayload['status']);
     }
 
     public function testHandleLogsDegradedWhenRabbitMQDown(): void
@@ -118,24 +165,34 @@ class HealthCheckJobTest extends TestCase
         $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
         $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('down', null, 'not connected'));
 
+        $loggedPayloads = [];
+        $this->logger->method('info')->willReturnCallback(function ($message, $context) use (&$loggedPayloads): void {
+            $loggedPayloads[] = $context;
+        });
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
-
-        $this->logger->expects($this->once())
-            ->method('info')
-            ->with(
-                'Health check completed',
-                $this->callback(function (array $payload) {
-                    return $payload['status'] === 'degraded';
-                })
-            );
-
         $job->run(new JobContext($this->logger, new JobSignal()));
+
+        $healthPayload = null;
+        foreach ($loggedPayloads as $p) {
+            if (($p['event'] ?? '') === 'health-check') {
+                $healthPayload = $p;
+                break;
+            }
+        }
+
+        $this->assertNotNull($healthPayload);
+        $this->assertSame('degraded', $healthPayload['status']);
     }
 
     public function testHandlePrintsToStdout(): void
     {
-        $checker = $this->createAllUpChecker();
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker->method('checkPostgres')->willReturn(new HealthCheckResult('up', 5));
+        $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
+        $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
 
@@ -149,9 +206,13 @@ class HealthCheckJobTest extends TestCase
         $this->assertStringContainsString('rabbitmq=disabled', $output);
     }
 
-    public function testHandleReturnsSuccess(): void
+    public function testHandleReturnsSuccessResult(): void
     {
-        $checker = $this->createAllUpChecker();
+        $checker = $this->createMock(HealthCheckerInterface::class);
+        $checker->method('checkPostgres')->willReturn(new HealthCheckResult('up', 5));
+        $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
+        $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
+
         $job = new HealthCheckJob($checker);
         $job->setLogger($this->logger);
 
@@ -161,12 +222,33 @@ class HealthCheckJobTest extends TestCase
         $this->assertSame('success', $result->status->value);
     }
 
-    private function createAllUpChecker(): HealthCheckerInterface
+    public function testHandleTimestampInPayload(): void
     {
         $checker = $this->createMock(HealthCheckerInterface::class);
         $checker->method('checkPostgres')->willReturn(new HealthCheckResult('up', 5));
         $checker->method('checkRedis')->willReturn(new HealthCheckResult('up', 1));
         $checker->method('checkRabbitMQ')->willReturn(new HealthCheckResult('disabled'));
-        return $checker;
+
+        $loggedPayloads = [];
+        $this->logger->method('info')->willReturnCallback(function ($message, $context) use (&$loggedPayloads): void {
+            $loggedPayloads[] = $context;
+        });
+
+        $job = new HealthCheckJob($checker);
+        $job->setLogger($this->logger);
+        $job->run(new JobContext($this->logger, new JobSignal()));
+
+        $healthPayload = null;
+        foreach ($loggedPayloads as $p) {
+            if (($p['event'] ?? '') === 'health-check') {
+                $healthPayload = $p;
+                break;
+            }
+        }
+
+        $this->assertNotNull($healthPayload);
+        $this->assertNotNull($healthPayload['timestamp']);
+        $this->assertNotNull($healthPayload['timestamp']);
+        $this->assertStringContainsString('T', $healthPayload['timestamp']);
     }
 }

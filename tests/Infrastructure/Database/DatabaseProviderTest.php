@@ -9,6 +9,13 @@ use PHPUnit\Framework\TestCase;
 
 class DatabaseProviderTest extends TestCase
 {
+    private static bool $sqliteAvailable;
+
+    public static function setUpBeforeClass(): void
+    {
+        self::$sqliteAvailable = in_array('sqlite', \PDO::getAvailableDrivers());
+    }
+
     protected function setUp(): void
     {
         DatabaseProvider::resetInstance();
@@ -30,6 +37,9 @@ class DatabaseProviderTest extends TestCase
 
     public function testPingReturnsTrueWithSqliteMemory(): void
     {
+        if (!self::$sqliteAvailable) {
+            $this->markTestSkipped('SQLite PDO driver not available');
+        }
         $provider = DatabaseProvider::getInstance();
         $this->assertTrue($provider->ping());
     }

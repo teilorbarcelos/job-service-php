@@ -7,10 +7,11 @@ namespace Tests\Jobs;
 use App\Core\DragonmantankCronAdapter;
 use App\Core\Scheduler;
 use App\Infrastructure\Health\DefaultHealthChecker;
-use App\Jobs\registerJobs;
 use App\Shared\Config\AppSettings;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+
+use function App\Jobs\registerJobs;
 
 class RegisterJobsTest extends TestCase
 {

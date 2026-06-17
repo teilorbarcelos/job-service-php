@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Tests\Infrastructure;
+namespace Tests\Infrastructure\Redis;
 
 use App\Infrastructure\Redis\RedisProvider;
 use PHPUnit\Framework\TestCase;
@@ -29,11 +29,9 @@ class RedisProviderTest extends TestCase
         $this->assertNotSame($instance1, $instance2);
     }
 
-    public function testGetNativeRedisThrowsWhenNoRedisAvailable(): void
+    public function testGetNativeRedisThrowsWhenNoRedis(): void
     {
         $provider = RedisProvider::getInstance();
-        $_ENV['REDIS_HOST'] = '192.0.2.1';
-
         $this->expectException(\Exception::class);
         $provider->getNativeRedis();
     }

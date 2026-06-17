@@ -6,12 +6,23 @@ namespace Tests\Core;
 
 use App\Core\BaseJob;
 use App\Core\CronAdapter;
-use App\Core\DragonmantankCronAdapter;
 use App\Core\JobContext;
 use App\Core\JobInfo;
 use App\Core\Scheduler;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
+
+class SchedulerTestJob extends BaseJob
+{
+    public string $jobName;
+    public string $jobSchedule;
+    public string $jobDescription = 'Test job';
+
+    public function getName(): string { return $this->jobName; }
+    public function getSchedule(): string { return $this->jobSchedule; }
+    public function getDescription(): string { return $this->jobDescription; }
+    protected function handle(JobContext $context): void {}
+}
 
 class SchedulerTest extends TestCase
 {
@@ -24,7 +35,9 @@ class SchedulerTest extends TestCase
 
     public function testListJobsReturnsInfo(): void
     {
-        $job = $this->createEnabledJob('test', '*/5 * * * *');
+        $job = new SchedulerTestJob();
+        $job->jobName = 'test';
+        $job->jobSchedule = '*/5 * * * *';
         $cron = $this->createValidCron();
         $scheduler = new Scheduler([$job], $cron, $this->logger);
 
@@ -42,8 +55,14 @@ class SchedulerTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Duplicate job name: dup');
 
-        $job1 = $this->createEnabledJob('dup', '*/5 * * * *');
-        $job2 = $this->createEnabledJob('dup', '*/10 * * * *');
+        $job1 = new SchedulerTestJob();
+        $job1->jobName = 'dup';
+        $job1->jobSchedule = '*/5 * * * *';
+
+        $job2 = new SchedulerTestJob();
+        $job2->jobName = 'dup';
+        $job2->jobSchedule = '*/10 * * * *';
+
         new Scheduler([$job1, $job2], $this->createValidCron(), $this->logger);
     }
 
@@ -52,7 +71,11 @@ class SchedulerTest extends TestCase
         $cron = $this->createMock(CronAdapter::class);
         $cron->method('isValid')->willReturn(false);
 
-        $scheduler = new Scheduler([$this->createEnabledJob('a', 'invalid')], $cron, $this->logger);
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = 'invalid';
+
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
 
         $this->expectException(\InvalidArgumentException::class);
         $this->expectExceptionMessage('Invalid cron expression for job a: invalid');
@@ -62,39 +85,37 @@ class SchedulerTest extends TestCase
     public function testIsRunningReturnsCorrectState(): void
     {
         $cron = $this->createValidCron();
-        $scheduler = new Scheduler([$this->createEnabledJob('a', '*/5 * * * *')], $cron, $this->logger);
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/5 * * * *';
 
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
         $this->assertFalse($scheduler->isRunning('a'));
     }
 
     public function testWaitForRunningJobsCompletes(): void
     {
         $cron = $this->createValidCron();
-        $scheduler = new Scheduler([$this->createEnabledJob('a', '*/5 * * * *')], $cron, $this->logger);
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/5 * * * *';
 
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
         $scheduler->waitForRunningJobs();
         $this->assertTrue(true);
     }
 
-    private function createEnabledJob(string $name, string $schedule): BaseJob
+    public function testStopDoesNotThrow(): void
     {
-        return new class($name, $schedule) extends BaseJob {
-            public string $jobName;
-            public string $jobSchedule;
-            public string $jobDescription = 'Test job';
+        $cron = $this->createValidCron();
+        $job = new SchedulerTestJob();
+        $job->jobName = 'a';
+        $job->jobSchedule = '*/5 * * * *';
+        $job->enabled = false;
 
-            public function __construct(string $name, string $schedule)
-            {
-                parent::__construct();
-                $this->jobName = $name;
-                $this->jobSchedule = $schedule;
-            }
-
-            public function getName(): string { return $this->jobName; }
-            public function getSchedule(): string { return $this->jobSchedule; }
-            public function getDescription(): string { return $this->jobDescription; }
-            protected function handle(JobContext $context): void {}
-        };
+        $scheduler = new Scheduler([$job], $cron, $this->logger);
+        $scheduler->stop();
+        $this->assertTrue(true);
     }
 
     private function createValidCron(): CronAdapter

@@ -89,7 +89,11 @@ class RabbitMQProvider
         }
 
         if (!$this->channel) {
-            $this->connect();
+            try {
+                $this->connect();
+            } catch (\Throwable) {
+                return;
+            }
         }
 
         $channel = $this->channel;

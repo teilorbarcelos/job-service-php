@@ -9,21 +9,3 @@ interface CronAdapter
     public function isValid(string $expression): bool;
     public function getNextRunDate(string $expression, \DateTimeImmutable $from): ?\DateTimeImmutable;
 }
-
-final class DragonmantankCronAdapter implements CronAdapter
-{
-    public function isValid(string $expression): bool
-    {
-        return \Cron\CronExpression::isValidExpression($expression);
-    }
-
-    public function getNextRunDate(string $expression, \DateTimeImmutable $from): ?\DateTimeImmutable
-    {
-        try {
-            $cron = new \Cron\CronExpression($expression);
-            return \DateTimeImmutable::createFromMutable($cron->getNextRunDate($from));
-        } catch (\Throwable) {
-            return null;
-        }
-    }
-}
