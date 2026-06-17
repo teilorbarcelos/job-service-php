@@ -28,7 +28,7 @@ class RabbitMQProvider
             'user' => $_ENV['RABBIT_USER'] ?? 'guest',
             'password' => $_ENV['RABBIT_PASSWORD'] ?? 'guest',
         ];
-        $this->connectionFactory = $connectionFactory ?: function() {
+        $this->connectionFactory = $connectionFactory ?: function () {
             /** @var string $host */
             $host = $this->config['host'];
             /** @var int $port */
@@ -60,12 +60,12 @@ class RabbitMQProvider
             try {
                 $this->connection = ($this->connectionFactory)();
                 $this->channel = $this->connection->channel();
-                $this->logger->info("[RabbitMQ] Connected successfully");
+                $this->logger->info('[RabbitMQ] Connected successfully');
                 return;
             } catch (\Exception $e) {
                 $lastException = $e;
                 $this->logger->warning(sprintf(
-                    "[RabbitMQ] Connection attempt %d failed: %s. Retrying in %ds...",
+                    '[RabbitMQ] Connection attempt %d failed: %s. Retrying in %ds...',
                     $i + 1,
                     $e->getMessage(),
                     $delay
@@ -77,7 +77,7 @@ class RabbitMQProvider
             }
         }
 
-        $this->logger->error("[RabbitMQ] All connection attempts failed after retries.");
+        $this->logger->error('[RabbitMQ] All connection attempts failed after retries.');
         throw $lastException;
     }
 
@@ -105,51 +105,38 @@ class RabbitMQProvider
         }
 
         $msg = new AMQPMessage($msgBody, [
-            'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT
+            'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT,
         ]);
 
         $channel->basic_publish($msg, '', $queueName);
     }
 
-    public function subscribe(string $queueName, callable $callback): void
+    public function isOpen(): bool
     {
         if (!$this->enabled) {
-            return;
+            return false;
         }
-
-        if (!$this->channel) {
-            $this->connect();
-        }
-
-        $channel = $this->channel;
-        if (!$channel) {
-            return;
-        }
-
-        $channel->queue_declare($queueName, false, true, false, false);
-
-        $channel->basic_consume($queueName, '', false, true, false, false, function (AMQPMessage $msg) use ($callback) {
-            try {
-                $content = json_decode($msg->body, true);
-                $callback($content);
-            } catch (\Exception $e) {
-                $this->logger->error(sprintf("[RabbitMQ] Error processing message: %s", $e->getMessage()));
-            }
-        });
-
-        while ($channel->is_consuming()) {
-            $channel->wait();
-        }
+        return $this->connection !== null && $this->connection->isConnected();
     }
 
-    public function disconnect(): void
+    public function close(): void
     {
-        if ($this->channel) {
-            $this->channel->close();
+        try {
+            if ($this->channel) {
+                $this->channel->close();
+            }
+        } catch (\Exception $e) {
+            $this->logger->error(sprintf('[RabbitMQ] Error closing channel: %s', $e->getMessage()));
         }
-        if ($this->connection) {
-            $this->connection->close();
+        try {
+            if ($this->connection) {
+                $this->connection->close();
+            }
+        } catch (\Exception $e) {
+            $this->logger->error(sprintf('[RabbitMQ] Error closing connection: %s', $e->getMessage()));
         }
-        $this->logger->info("[RabbitMQ] Disconnected");
+        $this->channel = null;
+        $this->connection = null;
+        $this->logger->info('[RabbitMQ] Disconnected');
     }
 }
