@@ -3,9 +3,9 @@ set -uo pipefail
 
 PROJECT_KEY="${1:-teilorbarcelos_job-service-php}"
 PROJECT_NAME="${2:-Job Service PHP}"
-SONAR_TOKEN="${SONAR_TOKEN:-squ_733ffb0b40e059b7a5f353a7f16c2896cb8e7052}"
+SONAR_TOKEN="${SONAR_TOKEN:?SONAR_TOKEN environment variable is required}"
 SONAR_HOST="${SONAR_HOST:-http://localhost:9000}"
-SCANNER_BIN="${SCANNER_BIN:-/home/teilor/.sonar/native-sonar-scanner/sonar-scanner-6.2.1.4610-linux-x64/bin/sonar-scanner}"
+SCANNER_BIN="${SCANNER_BIN:-sonar-scanner}"
 
 export LANG="${LANG:-C.UTF-8}"
 export LC_ALL="${LC_ALL:-C.UTF-8}"
