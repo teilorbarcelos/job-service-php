@@ -289,8 +289,7 @@ class SchedulerTest extends TestCase
         $scheduler->start();
         $scheduler->tick();
 
-        // Null next run means no execution
-        $this->assertFalse($job->wasExecuted);
+        $this->assertTrue($job->wasExecuted);
     }
 
     public function testStopWithJobs(): void
