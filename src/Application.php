@@ -16,7 +16,7 @@ use App\Infrastructure\Database\DatabaseProvider;
 use App\Infrastructure\Redis\RedisProvider;
 use App\Infrastructure\Messaging\RabbitMQProvider;
 use App\Infrastructure\Health\DefaultHealthChecker;
-use App\Jobs\registerJobs;
+use function App\Jobs\registerJobs;
 use App\Shared\Config\EnvValidator;
 use App\Shared\Utils\LoggerFactory;
 use App\Shared\Utils\ShutdownHandler;
