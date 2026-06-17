@@ -6,14 +6,18 @@
     },
     {
       "name": "Start Infrastructure",
-      "command": "make up"
+      "command": "make infra-up"
     },
     {
       "name": "Stop Infrastructure",
-      "command": "make down"
+      "command": "make infra-stop"
     },
     {
-      "name": "Start Development Server",
+      "name": "Down Infrastructure",
+      "command": "make infra-down"
+    },
+    {
+      "name": "Development Mode",
       "command": "make dev"
     },
     {
@@ -25,38 +29,18 @@
       "command": "make coverage"
     },
     {
-      "name": "Start Metrics (Grafana & Prometheus)",
-      "command": "make metrics-up"
+      "name": "Generate Job",
+      "command": "make generate-job"
     },
     {
-      "name": "Stop Metrics",
-      "command": "make metrics-stop"
-    },
-    {
-      "name": "Down Metrics (Remove Containers)",
-      "command": "make metrics-down"
-    },
-    {
-      "name": "Generate Module (make generate name=Entity)",
-      "command": "make generate"
-    },
-    {
-      "name": "Install Storage: AWS S3",
-      "command": "make storage-driver name=s3"
-    },
-    {
-      "name": "Install Storage: Google Cloud (GCS)",
-      "command": "make storage-driver name=gcs"
-    },
-    {
-      "name": "Install Storage: Azure Blob",
-      "command": "make storage-driver name=azure"
+      "name": "SonarQube Scan",
+      "command": "make sonar"
     }
   ],
   "replacements": [
     {
       "path": "composer.json",
-      "pattern": "backend-php-slim"
+      "pattern": "job-service-php"
     }
   ]
 }

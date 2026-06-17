@@ -15,9 +15,6 @@
         <testsuite name="Integration">
             <directory>tests/Integration</directory>
         </testsuite>
-        <testsuite name="Infrastructure">
-            <directory>tests/Infrastructure</directory>
-        </testsuite>
     </testsuites>
     <source>
         <include>
@@ -35,6 +32,9 @@
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="DB_DRIVER" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
-        <env name="JWT_SECRET" value="test-secret-key-that-is-long-enough-for-hs256" force="true"/>
+        <env name="LOG_LEVEL" value="error" force="true"/>
+        <env name="MESSAGING_ENABLED" value="false" force="true"/>
+        <env name="HEALTH_CHECK_ENABLED" value="true" force="true"/>
+        <env name="HEALTH_CHECK_CRON" value="*/5 * * * *" force="true"/>
     </php>
 </phpunit>
