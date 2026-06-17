@@ -1,46 +1,25 @@
-FROM dunglas/frankenphp:latest AS base
+FROM php:8.3-cli-alpine AS base
 
-# Install PHP extensions
-RUN install-php-extensions \
-    pdo_pgsql \
-    pgsql \
-    redis \
-    intl \
-    zip \
-    opcache \
-    pcov \
-    sockets
-
-RUN echo "pcov.enabled=0" >> /usr/local/etc/php/conf.d/docker-php-ext-pcov.ini
+RUN apk add --no-cache postgresql-dev linux-headers git autoconf g++ make \
+    && docker-php-ext-install pdo_pgsql pcntl sockets \
+    && pecl install redis && docker-php-ext-enable redis \
+    && pecl install pcov && docker-php-ext-enable pcov \
+    && apk del autoconf g++ make linux-headers
 
 WORKDIR /app
 
-# --- Development stage ---
-FROM base AS dev
-# Install composer
+FROM base AS builder
+
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-# In dev, we usually mount the code via volumes, so we don't COPY here
-# but we can copy composer files to pre-install dependencies
+
 COPY composer.json composer.lock ./
-RUN composer install --no-interaction --no-scripts
-# OPCache config for dev (JIT off, validate timestamps on)
-RUN echo "opcache.enable=1\nopcache.validate_timestamps=1\nopcache.revalidate_freq=2" > /usr/local/etc/php/conf.d/opcache.ini
+RUN composer install --no-interaction --no-scripts --ignore-platform-req=ext-pcntl --ignore-platform-req=ext-sockets
 
-# --- Production stage ---
-FROM base AS prod
-ENV APP_ENV=prod
-ENV FRANKEN_WORKER=true
-# Copy code
-COPY . /app
-# Install composer and dependencies
-COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
-RUN composer install --no-dev --no-interaction --no-scripts --optimize-autoloader
+COPY . .
+RUN composer dump-autoload --no-interaction
 
-# OPCache + JIT configuration
-COPY infra/php/conf.d/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+FROM base AS release
 
-# Preload script
-COPY preload.php /app/preload.php
+COPY --from=builder /app /app
 
-# Adjust permissions
-RUN chown -R www-data:www-data /app/public
+CMD ["php", "src/Application.php"]

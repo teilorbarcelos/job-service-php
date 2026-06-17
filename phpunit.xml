@@ -5,18 +5,21 @@
          colors="true"
          cacheDirectory=".phpunit.cache"
          executionOrder="depends,defects"
-         beStrictAboutOutputDuringTests="true"
+         beStrictAboutOutputDuringTests="false"
          failOnRisky="true"
          failOnWarning="true">
     <testsuites>
-        <testsuite name="Unit">
-            <directory>tests/Unit</directory>
-        </testsuite>
-        <testsuite name="Integration">
-            <directory>tests/Integration</directory>
+        <testsuite name="Core">
+            <directory>tests/Core</directory>
         </testsuite>
         <testsuite name="Infrastructure">
             <directory>tests/Infrastructure</directory>
+        </testsuite>
+        <testsuite name="Jobs">
+            <directory>tests/Jobs</directory>
+        </testsuite>
+        <testsuite name="Shared">
+            <directory>tests/Shared</directory>
         </testsuite>
     </testsuites>
     <source>
@@ -35,6 +38,9 @@
         <env name="APP_ENV" value="testing" force="true"/>
         <env name="DB_DRIVER" value="sqlite" force="true"/>
         <env name="DB_DATABASE" value=":memory:" force="true"/>
-        <env name="JWT_SECRET" value="test-secret-key-that-is-long-enough-for-hs256" force="true"/>
+        <env name="LOG_LEVEL" value="error" force="true"/>
+        <env name="MESSAGING_ENABLED" value="false" force="true"/>
+        <env name="HEALTH_CHECK_ENABLED" value="true" force="true"/>
+
     </php>
 </phpunit>

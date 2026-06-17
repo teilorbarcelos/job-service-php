@@ -1,85 +1,75 @@
-.PHONY: dev watch test coverage generate storage-driver up down restart build logs shell migrate seed lint db-up db-down app-up migrate-dev migrate-status check-running metrics-up metrics-stop metrics-down
+.PHONY: help dev test coverage lint check infra-up infra-stop infra-down infra-clean generate-job build run sonar clean
 
-# Standardized commands
-dev: build
-	docker compose watch
+help:
+	@echo "Job Service PHP — available targets:"
+	@echo "  make dev             Run in dev mode"
+	@echo "  make test            Run unit tests"
+	@echo "  make coverage        Run tests with coverage gate (100%)"
+	@echo "  make lint            Run PHPStan analysis"
+	@echo "  make check           Run lint + test + coverage gate"
+	@echo "  make infra-up        Start PG + Redis + Rabbit via Docker Compose"
+	@echo "  make infra-stop      Stop the dev infrastructure"
+	@echo "  make infra-down      Stop and remove infra containers"
+	@echo "  make infra-clean     Stop infra and remove volumes/images"
+	@echo "  make generate-job    Generate new job (name=MyName schedule='0 3 * * *' description='TBD')"
+	@echo "  make build           Build Docker image"
+	@echo "  make run             Run the application (Docker)"
+	@echo "  make sonar           Run SonarQube scan"
+	@echo "  make clean           Remove build artifacts"
 
-watch:
-	docker compose watch
+dev:
+	@echo "🔧 Starting job runner (PHP)..."
+	php -d display_errors=1 src/Application.php
 
-check-running:
-	@./scripts/check-status.sh
+test:
+	@echo "🧪 Running tests..."
+	php -d pcov.enabled=0 vendor/bin/phpunit --no-coverage
 
-test: check-running
-	docker compose exec -T app vendor/bin/phpunit --no-coverage
+coverage:
+	@echo "📊 Running tests with coverage (Docker)..."
+	docker run --rm -v $(PWD):/app -w /app job-service-php:test php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --coverage-clover coverage/clover.xml
+	php scripts/check-coverage.php
 
-coverage: check-running
-	docker compose exec -T app php -d pcov.enabled=1 vendor/bin/phpunit --coverage-text --coverage-clover coverage/clover.xml
-	docker compose exec -T app php scripts/check-coverage.php
+lint:
+	@echo "🔍 Running PHPStan..."
+	vendor/bin/phpstan analyse --memory-limit=-1
 
-# Example: make generate name=Product
-generate:
-	@php scripts/generate-module.php $(name)
+check: lint test coverage
+	@echo "✅ All checks passed"
 
-# Example: make storage-driver name=s3
-storage-driver:
-	@php scripts/install-storage.php $(name)
+infra-up:
+	@echo "🐳 Starting infrastructure (PostgreSQL + Redis + RabbitMQ)..."
+	docker compose -f docker-compose.infra.yml up -d
 
-# Helper / Infrastructure commands
-up:
-	docker compose up -d
+infra-stop:
+	@echo "🛑 Stopping infrastructure..."
+	docker compose -f docker-compose.infra.yml stop
 
-down:
-	docker compose down
+infra-down:
+	@echo "🗑️ Removing infrastructure containers..."
+	docker compose -f docker-compose.infra.yml down
 
-restart:
-	docker compose restart
+infra-clean:
+	@echo "🧹 Cleaning infrastructure..."
+	docker compose -f docker-compose.infra.yml down -v --rmi all
+
+# Example: make generate-job name=CleanupOldRecords schedule="0 3 * * *" description="Remove old records"
+generate-job:
+	@echo "🏗️  Generating job $(name)..."
+	@php scripts/generate-job.php "$(name)" "$(schedule)" "$(description)"
 
 build:
-	docker compose build
+	@echo "🐳 Building Docker image..."
+	docker build -t job-service-php .
 
-logs:
-	docker compose logs -f app
+run:
+	@echo "🚀 Running application container..."
+	docker run --rm --network host job-service-php
 
-shell:
-	docker compose exec app bash
+sonar:
+	@echo "🔍 Running SonarQube scan..."
+	./scripts/sonar-scan.sh "teilorbarcelos_job-service-php" "Job Service PHP"
 
-migrate: check-running
-	docker compose exec -T app vendor/bin/phinx migrate
-
-seed: check-running
-	docker compose exec -T app vendor/bin/phinx seed:run
-
-init: check-running
-	docker compose exec -T app php scripts/init-app.php
-
-lint: check-running
-	docker compose exec -T app vendor/bin/phpstan analyse --memory-limit=-1
-
-db-up:
-	docker compose up -d db redis rabbitmq
-
-db-down:
-	docker compose stop db redis rabbitmq
-
-app-up:
-	docker compose up -d app
-
-migrate-dev: check-running
-	docker compose exec -T app vendor/bin/phinx create $(name)
-
-migrate-status: check-running
-	docker compose exec -T app vendor/bin/phinx status
-
-# Métricas (Prometheus & Grafana)
-metrics-up:
-	@echo "📈 Subindo stack de métricas (Prometheus & Grafana)..."
-	docker compose -f docker-compose.metrics.yml up -d
-
-metrics-stop:
-	@echo "🛑 Parando stack de métricas..."
-	docker compose -f docker-compose.metrics.yml stop
-
-metrics-down:
-	@echo "🗑️ Removendo stack de métricas..."
-	docker compose -f docker-compose.metrics.yml down
+clean:
+	@echo "🧹 Cleaning artifacts..."
+	rm -rf coverage/ .phpunit.cache/ .sonarqube/
