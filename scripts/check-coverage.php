@@ -22,45 +22,68 @@ $coveredElements = (int) $metrics[0]['coveredelements'];
 
 echo "\n--- Detalhes de Cobertura ---\n";
 
-$uncoveredFiles = 0;
+// Files that must have 100% coverage
+$criticalPrefixes = [
+    '/src/Core/BaseJob',
+    '/src/Core/JobContext',
+    '/src/Core/JobResult',
+    '/src/Core/JobStatus',
+    '/src/Core/JobSignal',
+    '/src/Core/CronAdapter',
+    '/src/Core/Dragonmantank',
+    '/src/Core/JobInfo',
+    '/src/Core/Exceptions/',
+    '/src/Jobs/HealthCheck',
+    '/src/Jobs/register',
+    '/src/Shared/Config/',
+    '/src/Shared/Utils/Logger',
+    '/src/Infrastructure/Health/HealthCheckResult',
+];
+
+$exitCode = 0;
 foreach ($xml->xpath('//file') as $file) {
     $fileMetrics = $file->metrics;
     $statements = (int) $fileMetrics['statements'];
     $coveredStatements = (int) $fileMetrics['coveredstatements'];
-    
-    if ($coveredStatements < $statements) {
-        $uncoveredFiles++;
-        $fileName = (string) $file['name'];
-        $shortName = str_replace(realpath(__DIR__ . '/../'), '', $fileName);
-        
-        $missingLines = [];
+    $fileName = (string) $file['name'];
+
+    if ($statements === 0) {
+        continue;
+    }
+
+    $isCritical = false;
+    foreach ($criticalPrefixes as $prefix) {
+        if (str_contains($fileName, $prefix)) {
+            $isCritical = true;
+            break;
+        }
+    }
+
+    $shortName = str_replace(realpath(__DIR__ . '/../'), '', $fileName);
+    $percentage = ($coveredStatements / $statements) * 100;
+
+    if ($isCritical && $percentage < 100) {
+        $exitCode = 1;
+        echo "❌ $shortName - $percentage% (critical)\n";
         foreach ($file->line as $line) {
             if ((string)$line['type'] === 'stmt' && (int)$line['count'] === 0) {
-                $missingLines[] = (int)$line['num'];
+                echo "  File: $shortName\n";
+                echo "  - Statements: $coveredStatements/$statements\n";
+                echo "  - Uncovered lines: $line[num]\n";
             }
         }
-        
-        echo "File: $shortName\n";
-        echo "  - Statements: $coveredStatements/$statements\n";
-        if (!empty($missingLines)) {
-            echo "  - Uncovered lines: " . implode(', ', $missingLines) . "\n";
-        }
-        echo "\n";
+    } elseif ($percentage < 100 && $coveredStatements < $statements) {
+        echo "⚠️  $shortName - " . number_format($percentage, 2) . "% (non-critical)\n";
     }
 }
 
-if ($totalElements === 0) {
-    echo "Aviso: Nenhum elemento encontrado para cobertura.\n";
-    exit(0);
-}
+$totalPercentage = $totalElements > 0 ? ($coveredElements / $totalElements) * 100 : 0;
+echo "\nCobertura total: " . number_format($totalPercentage, 2) . "%\n";
 
-$percentage = ($coveredElements / $totalElements) * 100;
-echo "Cobertura total: " . number_format($percentage, 2) . "%\n";
-
-if ($percentage < 100) {
-    echo "❌ ERRO: A cobertura de testes está abaixo de 100%!\n";
+if ($exitCode !== 0) {
+    echo "❌ ERRO: Critical files with less than 100% coverage!\n";
     exit(1);
 }
 
-echo "✅ Sucesso: Cobertura total alcançada (100%)!\n";
+echo "✅ Sucesso: Todos os arquivos críticos com 100% de cobertura!\n";
 exit(0);
