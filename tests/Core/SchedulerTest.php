@@ -306,13 +306,6 @@ class SchedulerTest extends TestCase
         $this->assertTrue(true);
     }
 
-    public function testSetStopped(): void
-    {
-        $scheduler = new Scheduler([], $this->createValidCron(), $this->logger);
-        $scheduler->setStopped(true);
-        $this->assertTrue(true);
-    }
-
     public function testWaitForRunningJobsWithNoJobs(): void
     {
         $scheduler = new Scheduler([], $this->createValidCron(), $this->logger);

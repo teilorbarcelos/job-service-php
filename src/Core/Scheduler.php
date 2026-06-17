@@ -10,11 +10,10 @@ class Scheduler
 {
     /** @var array<string, BaseJob> */
     private array $jobs = [];
-    /** @var array<string, \DateTimeImmutable> */
+    /** @var array<string, \DateTimeImmutable|null> */
     private array $nextRuns = [];
     /** @var array<string, bool> */
     private array $running = [];
-    private bool $stopped = false;
     private CronAdapter $cron;
     private int $executionTimeoutMs;
     private LoggerInterface $logger;
@@ -76,13 +75,6 @@ class Scheduler
                 'description' => $job->getDescription(),
             ]);
         }
-
-        $this->stopped = false;
-    }
-
-    public function setStopped(bool $stopped): void
-    {
-        $this->stopped = $stopped;
     }
 
     public function tick(): void
@@ -113,7 +105,6 @@ class Scheduler
 
     public function stop(): void
     {
-        $this->stopped = true;
         foreach ($this->jobs as $name => $job) {
             $this->logger->info('Job stopped', ['job' => $name]);
         }
@@ -121,7 +112,7 @@ class Scheduler
 
     public function waitForRunningJobs(): void
     {
-        $maxWait = 500; // 500 * 50ms = 25 seconds max
+        $maxWait = 500;
         while (count($this->running) > 0 && $maxWait > 0) {
             usleep(50_000);
             $maxWait--;

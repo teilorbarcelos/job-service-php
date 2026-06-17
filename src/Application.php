@@ -21,11 +21,15 @@ use App\Shared\Config\EnvValidator;
 use App\Shared\Utils\LoggerFactory;
 use App\Shared\Utils\ShutdownHandler;
 use Psr\Log\LoggerInterface;
+use Monolog\Level;
 
 $settings = EnvValidator::load();
 
 $logger = LoggerFactory::create($settings->logLevel);
 $logger->info('Starting job-service-php', ['env' => $settings->appEnv]);
+
+$database = null;
+$redis = null;
 
 try {
     $database = DatabaseProvider::getInstance();
@@ -54,7 +58,11 @@ if ($settings->messagingEnabled) {
     $logger->info('Messaging disabled');
 }
 
-$checker = new DefaultHealthChecker($database, $redis, $rabbitmq);
+$checker = new DefaultHealthChecker(
+    $database ?? DatabaseProvider::getInstance(),
+    $redis ?? RedisProvider::getInstance(),
+    $rabbitmq,
+);
 $cron = new DragonmantankCronAdapter();
 
 $scheduler = registerJobs($settings, $cron, $logger, $checker);
@@ -62,11 +70,6 @@ $scheduler->start();
 
 if (!function_exists('pcntl_signal')) {
     $logger->warning('pcntl extension not available, running without signal support');
-}
-
-while (true) {
-    $scheduler->tick();
-    sleep(1);
 }
 
 ShutdownHandler::register(function () use ($scheduler, $rabbitmq, $logger): void {
@@ -78,3 +81,9 @@ ShutdownHandler::register(function () use ($scheduler, $rabbitmq, $logger): void
     RedisProvider::resetInstance();
     $logger->info('Shutdown complete');
 }, $logger, $settings->shutdownTimeoutMs);
+
+// @phpstan-ignore-next-line
+while (true) {
+    $scheduler->tick();
+    sleep(1);
+}

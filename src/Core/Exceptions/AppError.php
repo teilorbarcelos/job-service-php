@@ -6,6 +6,7 @@ namespace App\Core\Exceptions;
 
 abstract class AppError extends \RuntimeException
 {
+    /** @param array<string, mixed>|null $details */
     public function __construct(
         string $message = '',
         int $code = 0,
