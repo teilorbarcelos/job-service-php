@@ -68,7 +68,7 @@ run:
 
 sonar:
 	@echo "🔍 Running SonarQube scan..."
-	./scripts/sonar-scan.sh "teilorbarcelos_job-service-php" "Job Service PHP"
+	./scripts/sonar-scan.sh "job-service-php" "Job Service PHP"
 
 clean:
 	@echo "🧹 Cleaning artifacts..."

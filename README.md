@@ -247,8 +247,8 @@ make sonar           # Roda sonar-scanner → http://localhost:9000
 Pré-requisitos:
 
 - SonarQube rodando em `http://localhost:9000`
-- Token em `SONAR_TOKEN` (ou usa o default em `scripts/sonar-scan.sh`)
-- Sonar scanner em `/home/teilor/.sonar/native-sonar-scanner/...`
+- Token configurado via `SONAR_TOKEN` ou alterar em `scripts/sonar-scan.sh`
+- Sonar Scanner CLI instalado e configurado no `$PATH` ou ajustar o caminho em `scripts/sonar-scan.sh`
 
 ---
 
